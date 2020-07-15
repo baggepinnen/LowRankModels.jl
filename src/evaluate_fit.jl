@@ -1,8 +1,8 @@
 export objective, error_metric, impute, impute_missing
 
 ### OBJECTIVE FUNCTION EVALUATION FOR MPCA
-function objective(glrm::GLRM, X::Array{Float64,2}, Y::Array{Float64,2},
-                   XY::Array{Float64,2};
+function objective(glrm::GLRM, X::AbstractMatrix, Y::AbstractMatrix,
+                   XY::AbstractMatrix;
                    yidxs = get_yidxs(glrm.losses), # mapping from columns of A to columns of Y; by default, the identity
                    include_regularization=true)
     m,n = size(glrm.A)
@@ -21,7 +21,7 @@ function objective(glrm::GLRM, X::Array{Float64,2}, Y::Array{Float64,2},
     end
     return err
 end
-function row_objective(glrm::AbstractGLRM, i::Int, x::AbstractArray, Y::Array{Float64,2} = glrm.Y;
+function row_objective(glrm::AbstractGLRM, i::Int, x::AbstractArray, Y::AbstractMatrix = glrm.Y;
                    yidxs = get_yidxs(glrm.losses), # mapping from columns of A to columns of Y; by default, the identity
                    include_regularization=true)
     m,n = size(glrm.A)
@@ -36,7 +36,7 @@ function row_objective(glrm::AbstractGLRM, i::Int, x::AbstractArray, Y::Array{Fl
     end
     return err
 end
-function col_objective(glrm::AbstractGLRM, j::Int, y::AbstractArray, X::Array{Float64,2} = glrm.X;
+function col_objective(glrm::AbstractGLRM, j::Int, y::AbstractArray, X::AbstractMatrix = glrm.X;
                    include_regularization=true)
     m,n = size(glrm.A)
     sz = size(y)
@@ -54,7 +54,7 @@ function col_objective(glrm::AbstractGLRM, j::Int, y::AbstractArray, X::Array{Fl
     return err
 end
 # The user can also pass in X and Y and `objective` will compute XY for them
-function objective(glrm::GLRM, X::Array{Float64,2}, Y::Array{Float64,2};
+function objective(glrm::GLRM, X::AbstractMatrix, Y::AbstractMatrix;
                    sparse=false, include_regularization=true,
                    yidxs = get_yidxs(glrm.losses), kwargs...)
     @assert(size(Y)==(glrm.k,yidxs[end][end]))
@@ -88,7 +88,7 @@ objective(glrm::ShareGLRM, X::SharedArray{Float64,2}, Y::SharedArray{Float64,2})
     objective(glrm, X.s, Y.s)
 
 # Helper function to calculate the regularization penalty for X and Y
-function calc_penalty(glrm::AbstractGLRM, X::Array{Float64,2}, Y::Array{Float64,2};
+function calc_penalty(glrm::AbstractGLRM, X::AbstractMatrix, Y::AbstractMatrix;
     yidxs = get_yidxs(glrm.losses))
     m,n = size(glrm.A)
     @assert(size(Y)==(glrm.k,yidxs[end][end]))
@@ -104,7 +104,7 @@ function calc_penalty(glrm::AbstractGLRM, X::Array{Float64,2}, Y::Array{Float64,
 end
 
 ## ERROR METRIC EVALUATION (BASED ON DOMAINS OF THE DATA)
-function raw_error_metric(glrm::AbstractGLRM, XY::Array{Float64,2}, domains::Array{Domain,1};
+function raw_error_metric(glrm::AbstractGLRM, XY::AbstractMatrix, domains::Array{Domain,1};
     yidxs = get_yidxs(glrm.losses))
     m,n = size(glrm.A)
     err = 0.0
@@ -115,7 +115,7 @@ function raw_error_metric(glrm::AbstractGLRM, XY::Array{Float64,2}, domains::Arr
     end
     return err
 end
-function std_error_metric(glrm::AbstractGLRM, XY::Array{Float64,2}, domains::Array{Domain,1};
+function std_error_metric(glrm::AbstractGLRM, XY::AbstractMatrix, domains::Array{Domain,1};
     yidxs = get_yidxs(glrm.losses))
     m,n = size(glrm.A)
     err = 0.0
@@ -134,7 +134,7 @@ function std_error_metric(glrm::AbstractGLRM, XY::Array{Float64,2}, domains::Arr
     end
     return err
 end
-function error_metric(glrm::AbstractGLRM, XY::Array{Float64,2}, domains::Array{Domain,1};
+function error_metric(glrm::AbstractGLRM, XY::AbstractMatrix, domains::Array{Domain,1};
     standardize=false,
     yidxs = get_yidxs(glrm.losses))
     m,n = size(glrm.A)
@@ -146,7 +146,7 @@ function error_metric(glrm::AbstractGLRM, XY::Array{Float64,2}, domains::Array{D
     end
 end
 # The user can also pass in X and Y and `error_metric` will compute XY for them
-function error_metric(glrm::AbstractGLRM, X::Array{Float64,2}, Y::Array{Float64,2}, domains::Array{Domain,1}=Domain[l.domain for l in glrm.losses]; kwargs...)
+function error_metric(glrm::AbstractGLRM, X::AbstractMatrix, Y::AbstractMatrix, domains::Array{Domain,1}=Domain[l.domain for l in glrm.losses]; kwargs...)
     XY = Array{Float64}(undef,(size(X,2), size(Y,2)))
     gemm!('T','N',1.0,X,Y,0.0,XY)
     error_metric(glrm, XY, domains; kwargs...)
