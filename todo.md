@@ -1,16 +1,10 @@
 # To Do
 
-* Make multidimensional categorical hinge loss
-
-* Set up a single command to:
+* Set up a single command for multiple imputation:
 	a) pick m random subsets of data,
 	b) choose model of rank k, regularization constant α for each subset,
 	c) impute missing data from each of the m selected models.
 	* (nandana will do this)
-
-* Call julia from R
-	* i write a wrapper
-	* nandana writes the UX
 
 * Documentation!
 	* how to think about mpca
@@ -25,7 +19,18 @@
 	* scaling?
 	* to log or not to log? that is the interpretative issue
 
+# Bugs
 
-# Bad news on 0.6
+* init_nndsvd! doesn't work (probably an upgrade-to-1.0 bug)
+* M_estimator doesn't work (losses.jl); bug in Optim?
+* sample doesn't work
+* lots of bugs in fit_dataframe_w_type_imputation; deprecated for now. (also it's an odd thing to do.)
+* imputation doesn't return correct type (for dataframes)
 
-* `scale!(l::Loss, v::Number)` seems to call `*(v, l)`, which is not in-place
+# How to register/publish a new version of the package
+
+1. update version number in Project.toml
+2. navigate to commit that you want tagged on github
+3. comment @Registrator register
+4. monitor resulting PR on the general registry to see if any bugs are found
+5. when PR is accepted, use Tagger to make github release

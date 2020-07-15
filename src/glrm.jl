@@ -2,11 +2,11 @@
 import LinearAlgebra: size, axpy!
 import LinearAlgebra.BLAS: gemm!
 
-@compat abstract type AbstractGLRM end
+abstract type AbstractGLRM end
 
 export AbstractGLRM, GLRM, getindex, size, scale_regularizer!
 
-@compat const ObsArray = @compat(Union{Array{Array{Int,1},1}, Array{UnitRange{Int},1}})
+const ObsArray = Union{Array{Array{Int,1},1}, Array{UnitRange{Int},1}}
 
 ### GLRM TYPE
 mutable struct GLRM<:AbstractGLRM
@@ -21,15 +21,12 @@ mutable struct GLRM<:AbstractGLRM
     Y::AbstractArray{Float64,2}  # Representation of features in low-rank space. A ≈ X'Y
 end
 
-# Initialize with nothing; could be useful for copying
-# GLRM{L<:Loss, R<:Regularizer}() = GLRM([],Loss[],ZeroReg(),Regularizer[],0,UnitRange{Int}[],UnitRange{Int}[],Array(Float64,(0,0)),Array(Float64,(0,0)))
-
 # usage notes:
 # * providing argument `obs` overwrites arguments `observed_features` and `observed_examples`
 # * offset and scale are *false* by default to avoid unexpected behavior
 # * convenience methods for calling are defined in utilities/conveniencemethods.jl
 function GLRM(A, losses::Array, rx::Array, ry::Array, k::Int;
-# the following tighter definition fails when you form an array of a tighter submutable struct than the abstract type, eg Array{QuadLoss,1}
+# the following tighter definition fails when you form an array of a tighter subtype than the abstract type, eg Array{QuadLoss,1}
 # function GLRM(A::AbstractArray, losses::Array{Loss,1}, rx::Array{Regularizer,1}, ry::Array{Regularizer,1}, k::Int;
               X = randn(k,size(A,1)), Y = randn(k,embedding_dim(losses)),
               obs = nothing,                                    # [(i₁,j₁), (i₂,j₂), ... (iₒ,jₒ)]
@@ -43,12 +40,11 @@ function GLRM(A, losses::Array, rx::Array, ry::Array, k::Int;
     if length(rx)!=m error("There must be either one X regularizer or as many X regularizers as there are rows in the data matrix") end
     if length(ry)!=n error("There must be either one Y regularizer or as many Y regularizers as there are columns in the data matrix") end
     if size(X)!=(k,m) error("X must be of size (k,m) where m is the number of rows in the data matrix. This is the transpose of the standard notation used in the paper, but it makes for better memory management. \nsize(X) = $(size(X)), size(A) = $(size(A)), k = $k") end
-    if size(Y)!=(k,sum(map(embedding_dim, losses))) error("Y must be of size (k,d) where d is the sum of the embedding dimensions of all the losses. \n(1 for real-valued losses, and the number of categories for categorical losses).") end
+    if size(Y)!=(k,embedding_dim(losses)) error("Y must be of size (k,d) where d is the sum of the embedding dimensions of all the losses. \n(1 for real-valued losses, and the number of categories for categorical losses).") end
 
     # Determine observed entries of data
     if obs==nothing && sparse_na && isa(A,SparseMatrixCSC)
-        I,J = findn(A) # observed indices (vectors)
-        obs = [(I[a],J[a]) for a = 1:length(I)] # observed indices (list of tuples)
+        obs = findall(!iszero, A) # observed indices (list of CartesianIndices)
     end
     if obs==nothing # if no specified array of tuples, use what was explicitly passed in or the defaults (all)
         # println("no obs given, using observed_features and observed_examples")
@@ -87,7 +83,7 @@ parameter_estimate(glrm::GLRM) = (glrm.X, glrm.Y)
 
 
 function scale_regularizer!(glrm::GLRM, newscale::Number)
-    scale!(glrm.rx, newscale)
-    scale!(glrm.ry, newscale)
+    mul!(glrm.rx, newscale)
+    mul!(glrm.ry, newscale)
     return glrm
 end

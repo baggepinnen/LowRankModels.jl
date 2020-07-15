@@ -1,4 +1,4 @@
-export objective, error_metric, impute
+export objective, error_metric, impute, impute_missing
 
 ### OBJECTIVE FUNCTION EVALUATION FOR MPCA
 function objective(glrm::GLRM, X::Array{Float64,2}, Y::Array{Float64,2},
@@ -147,7 +147,7 @@ function error_metric(glrm::AbstractGLRM, XY::Array{Float64,2}, domains::Array{D
 end
 # The user can also pass in X and Y and `error_metric` will compute XY for them
 function error_metric(glrm::AbstractGLRM, X::Array{Float64,2}, Y::Array{Float64,2}, domains::Array{Domain,1}=Domain[l.domain for l in glrm.losses]; kwargs...)
-    XY = @compat Array{Float64}((size(X,2), size(Y,2)))
+    XY = Array{Float64}(undef,(size(X,2), size(Y,2)))
     gemm!('T','N',1.0,X,Y,0.0,XY)
     error_metric(glrm, XY, domains; kwargs...)
 end
@@ -157,3 +157,12 @@ error_metric(glrm::AbstractGLRM; kwargs...) = error_metric(glrm, Domain[l.domain
 
 # Use impute and errors over GLRMS
 impute(glrm::AbstractGLRM) = impute(glrm.losses, glrm.X'*glrm.Y)
+function impute_missing(glrm::AbstractGLRM)
+  Ahat = impute(glrm)
+  for j in 1:size(glrm.A,2)
+    for i in glrm.observed_examples[j]
+      Ahat[i,j] = glrm.A[i,j]
+    end
+  end
+  return Ahat
+end

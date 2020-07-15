@@ -2,13 +2,14 @@ __precompile__()
 
 module LowRankModels
 
-using Compat
 using Printf
 using SharedArrays
 using SparseArrays
 using Random
+using Statistics
+using DataFrames
 
-import LinearAlgebra: dot, norm, scale!, Diagonal, rmul!
+import LinearAlgebra: dot, norm, Diagonal, rmul!, mul!
 import Base: show
 import StatsBase: fit!, mode, mean, var, std
 
@@ -19,7 +20,7 @@ include("impute_and_err.jl")
 include("regularizers.jl")
 include("convergence.jl")
 
-# define basic data mutable struct(s)
+# define basic data type(s)
 include("glrm.jl")
 include("shareglrm.jl")
 
@@ -35,6 +36,7 @@ else
   include("algorithms/proxgrad.jl")
 end
 include("algorithms/sparse_proxgrad.jl")
+include("algorithms/quad_streaming.jl")
 
 # initialization methods
 include("rsvd.jl")

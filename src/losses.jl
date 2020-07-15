@@ -13,26 +13,26 @@
 #   set of possible values of the data, etc.
 #
 #   Methods:
-#     `my_loss_mutable struct(args..., scale=1.0::Float64;
-#                   domain=natural_Domain(args[range]...), kwargs...) ::my_loss_mutable struct`
-#           Constructor for the loss mutable struct. The first few arguments are parameters for
+#     `my_loss_type(args..., scale=1.0::Float64;
+#                   domain=natural_Domain(args[range]...), kwargs...) ::my_loss_type`
+#           Constructor for the loss type. The first few arguments are parameters for
 #           which there isn't a rational default (a loss may not need any of these).
 #           The last positional argument should be the scale, which should default to 1.
 #           There must be a default domain which is a Domain, which may take arguments from
 #           the list of positional arguments. Parameters besides the scale for which there are
 #           reasonable defaults should be included as keyword arguments (there may be none).
-#     `evaluate(l::my_loss_mutable struct, u::Float64, a::Number) ::Float64`
+#     `evaluate(l::my_loss_type, u::Float64, a::Number) ::Float64`
 #           Evaluates the function l(u,a) where u is the approximation of a
-#     `grad(l::my_loss_mutable struct, u::Float64, a::Number) ::Float64`
+#     `grad(l::my_loss_type, u::Float64, a::Number) ::Float64`
 #           Evaluates the gradient of the loss at the given point (u,a)
 
 #   In addition, loss functions should preferably implement methods:
-#     `M_estimator(l::my_loss_mutable struct, a::AbstractArray) ::Float64`
+#     `M_estimator(l::my_loss_type, a::AbstractArray) ::Float64`
 #           Finds uₒ = argmin ∑l(u,aᵢ) which is the best single estimate of the array `a`
 #           If `M_estimator` is not implemented, a live optimization procedure will be used when this function is
 #           called in order to compute loss function scalings. The live optimization may be slow, so an analytic
 #           implementation is preferable.
-#     `impute(d::Domain, l::my_loss_mutable struct, u::Array{Float64})` (in impute_and_err.jl)
+#     `impute(d::Domain, l::my_loss_type, u::Array{Float64})` (in impute_and_err.jl)
 #           Finds a = argmin l(u,a), the most likely value for an observation given a parameter u
 
 import Base: *, convert
@@ -46,25 +46,22 @@ export Loss,
        MultinomialLoss, OvALoss, # losses for predicting nominals (categoricals)
        PeriodicLoss, # losses for predicting periodic variables
        evaluate, grad, M_estimator, # methods on losses
-       avgerror, scale, scale!, *,
+       avgerror, scale, mul!, *,
        embedding_dim, get_yidxs, datalevels, domain
 
-@compat abstract type Loss end
+abstract type Loss end
 # a DiffLoss is one in which l(u,a) = f(u-a) AND argmin f(x) = 0
 # for example, QuadLoss(u,a)=(u-a)² and we can write f(x)=x² and x=u-a
-@compat abstract type DiffLoss<:Loss end
+abstract type DiffLoss<:Loss end
 # a ClassificationLoss is one in which observed values are true = 1 or false = 0 = -1 AND argmin_a L(u,a) = u>=0 ? true : false
-@compat abstract type ClassificationLoss<:Loss end
+abstract type ClassificationLoss<:Loss end
 # Single Dimensional losses are DiffLosses or ClassificationLosses, which allow optimized evaluate and grad functions
-@compat const SingleDimLoss = Union{DiffLoss, ClassificationLoss}
+const SingleDimLoss = Union{DiffLoss, ClassificationLoss}
 
-#= LinearAlgebra.scale! deprecateed for v1.0 - use LinearAlgebra.rmul! ?
-scale!(A::AbstractArray, b::Number) = rmul!(A,b)
-=#
-scale!(l::Loss, newscale::Number) = (l.scale = newscale; l)
+mul!(l::Loss, newscale::Number) = (l.scale = newscale; l)
 scale(l::Loss) = l.scale
-*(newscale::Number, l::Loss) = (newl = copy(l); scale!(newl, newscale))
-*(l::Loss, newscale::Number) = (newl = copy(l); scale!(newl, newscale))
+*(newscale::Number, l::Loss) = (newl = copy(l); mul!(newl, newscale))
+*(l::Loss, newscale::Number) = (newl = copy(l); mul!(newl, newscale))
 
 domain(l::Loss) = l.domain
 
@@ -83,7 +80,7 @@ function get_yidxs(losses::Array{LossSubtype,1}) where LossSubtype<:Loss
     featurestartidxs = cumsum(append!([1], ds))
     # find which columns of Y map to which columns of A (for multidimensional losses)
     U = Union{UnitRange{Int}, Int}
-    @compat yidxs = Array{U}(undef, n)
+    yidxs = Array{U}(undef, n)
 
     for f = 1:n
         if ds[f] == 1
@@ -103,10 +100,11 @@ end
 # grad{T<:Number}(l::Loss, u::Array{T,1}, a) = grad(l,convert(Array{Float64,1},u),a)
 
 ### -1,0,1::Int are translated to Booleans if loss is not defined on numbers
-convert(::Type{Bool}, x::Int) = x==1 ? true : (x==-1 || x==0) ? false : throw(InexactError())
-evaluate(l::ClassificationLoss, u::Float64, a::Int) = evaluate(l,u,Bool(a))
-grad(l::ClassificationLoss, u::Float64, a::Int) = grad(l,u,Bool(a))
-M_estimator(l::ClassificationLoss, a::AbstractArray{Int,1}) = M_estimator(l,Bool(a))
+# convert(::Type{Bool}, x::Int) = x==1 ? true : (x==-1 || x==0) ? false : throw(InexactError("Bool method successfully overloaded by LowRankModels"))
+myBool(x::Int) = x==1 ? true : (x==-1 || x==0) ? false : throw(InexactError())
+evaluate(l::ClassificationLoss, u::Float64, a::Int) = evaluate(l,u,myBool(a))
+grad(l::ClassificationLoss, u::Float64, a::Int) = grad(l,u,myBool(a))
+M_estimator(l::ClassificationLoss, a::AbstractArray{Int,1}) = M_estimator(l,myBool(a))
 
 ### M-estimators
 
@@ -129,10 +127,9 @@ end
 # average error incurred by using the estimate uₒ for every aᵢ
 function avgerror(l::Loss, a::AbstractArray)
     b = collect(skipmissing(a))
-    m = M_estimator(l,a)
-    sum(map(ai->evaluate(l,m,ai),a))/length(a)
+    m = M_estimator(l,b)
+    sum(map(ai->evaluate(l,m,ai),b))/length(b)
 end
-
 
 ## Losses:
 
@@ -179,7 +176,7 @@ end
 
 grad(l::HuberLoss,u::Float64,a::Number) = abs(u-a)>l.crossover ? sign(u-a)*l.scale : (u-a)*l.scale
 
-# M_estimator(l::HuberLoss, a::AbstractArray) = median(a) # a heuristic, not the true estimator.
+M_estimator(l::HuberLoss, a::AbstractArray) = median(a) # a heuristic, not the true estimator
 
 ########################################## QUANTILE ##########################################
 # f: ℜxℜ -> ℜ
@@ -468,14 +465,14 @@ mutable struct BvSLoss<:Loss
     scale::Float64
     domain::Domain
 end
-BvSLoss(m::Integer, scale::Float64=1.0; domain=OrdinalDomain(1,m), bin_loss::Loss=LogisticLoss(scale)) = BvSLoss(m,bin_loss,scale,domain)
+function BvSLoss(m::Integer, scale::Float64=1.0; domain=OrdinalDomain(1,m), bin_loss::Loss=LogisticLoss(scale))
+  @assert(m >= 2, error("Number of levels of ordinal variable must be at least 2; got $m."))
+  BvSLoss(m,bin_loss,scale,domain)
+end
 BvSLoss() = BvSLoss(10) # for copying correctly
 embedding_dim(l::BvSLoss) = l.max-1
 datalevels(l::BvSLoss) = 1:l.max # levels are encoded as the numbers 1:l.max
 
-# in Julia v0.4, argument u is a row vector (row slice of a matrix), which in julia is 2d
-# function evaluate(l::BvSLoss, u::Array{Float64,2}, a::Int)
-# this breaks compatibility with v0.4
 function evaluate(l::BvSLoss, u::Array{Float64,1}, a::Int)
     loss = 0
     for j in 1:length(u)
@@ -484,9 +481,6 @@ function evaluate(l::BvSLoss, u::Array{Float64,1}, a::Int)
     return l.scale*loss
 end
 
-# in Julia v0.4, argument u is a row vector (row slice of a matrix), which in julia is 2d
-# function grad(l::BvSLoss, u::Array{Float64,2}, a::Int)
-# this breaks compatibility with v0.4
 function grad(l::BvSLoss, u::Array{Float64,1}, a::Int)
   g = zeros(length(u))
   for j in 1:length(u)

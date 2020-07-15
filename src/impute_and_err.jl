@@ -13,12 +13,12 @@
 # In order to accomplish this we define a series of domains that describe how imputation should be performed over
 # them. Each combination of domain and loss must have the following:
 #	Methods:
-#     `impute(D::my_Domain, l::my_loss_mutable struct, u::Float64) ::Float64`
+#     `impute(D::my_Domain, l::my_loss_type, u::Float64) ::Float64`
 #           Imputes aᵤ = argmin l(u,a) over the range of possible values of a. The range of
 #			possible values of a should be implicitly or explicitly provided by `D`.
 #			There should be an impute method for every combination of datatype and loss.
-#     `error_metric(D::my_Domain, l::my_loss_mutable struct, u::Float64, a::Number) ::Float64`
-#           First calls aᵤ = impute(l,u), then uses the mutable struct of `my_D` to pick a
+#     `error_metric(D::my_Domain, l::my_loss_type, u::Float64, a::Number) ::Float64`
+#           First calls aᵤ = impute(l,u), then uses the type of `my_D` to pick a
 #			good measure of error- either 1-0 misclassification or squared difference.
 
 # DataTypes are assigned to each column of the data and are not part of the low-rank model itself, they just serve
@@ -44,7 +44,7 @@ impute(D::RealDomain, l::PoissonLoss, u::Float64) = exp(u)
 impute(D::RealDomain, l::OrdinalHingeLoss, u::Float64) = roundcutoff(u, l.min, l.max)
 impute(D::RealDomain, l::LogisticLoss, u::Float64) = error("Logistic loss always imputes either +∞ or -∞ given a∈ℜ")
 function impute(D::RealDomain, l::WeightedHingeLoss, u::Float64)
-	warn("It doesn't make sense to use HingeLoss to impute data that can take values in ℜ")
+	@warn("It doesn't make sense to use HingeLoss to impute data that can take values in ℜ")
 	1/u
 end
 
@@ -75,7 +75,7 @@ impute(D::OrdinalDomain, l::PoissonLoss, u::Float64) = roundcutoff(exp(u), D.min
 impute(D::OrdinalDomain, l::OrdinalHingeLoss, u::Float64) = roundcutoff(u, D.min, D.max)
 impute(D::OrdinalDomain, l::LogisticLoss, u::Float64) = u>0 ? D.max : D.min
 function impute(D::OrdinalDomain, l::WeightedHingeLoss, u::Float64)
-	warn("It doesn't make sense to use HingeLoss to impute ordinals")
+	@warn("It doesn't make sense to use HingeLoss to impute ordinals")
 	a_imputed = (u>0 ? ceil(1/u) : floor(1/u))
 	roundcutoff(a_imputed, D.min, D.max)
 end

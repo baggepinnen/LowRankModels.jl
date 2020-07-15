@@ -18,7 +18,7 @@ export Domain, # the abstract type
 	   RealDomain, BoolDomain, OrdinalDomain, PeriodicDomain, CountDomain, CategoricalDomain, # the domains
 	   copy
 
-@compat abstract type Domain end
+abstract type Domain end
 
 ########################################## REALS ##########################################
 # Real data can take values from ℜ
@@ -37,7 +37,7 @@ struct OrdinalDomain<:Domain
 	max::Int
 	function OrdinalDomain(min, max)
 		if max - min < 2
-			warn("The ordinal variable you've created is degenerate: it has only two levels. Consider using a Boolean variable instead; ordinal loss functions may have unexpected behavior on a degenerate ordinal domain.")
+			@warn("The ordinal variable you've created is degenerate: it has only two levels. Consider using a Boolean variable instead; ordinal loss functions may have unexpected behavior on a degenerate ordinal domain.")
 		end
 		return new(min, max)
 	end

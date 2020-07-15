@@ -15,7 +15,7 @@ export SkGLRM, PCA, QPCA, NNMF, KMeans, RPCA
 # There are other ways of setting it up, but this seems like the simplest.
 mutable struct SkGLRM <: ScikitLearnBase.BaseEstimator
     # Hyperparameters: those will be passed to GLRM, so it doesn't matter if
-    # they're not mutable structd.
+    # they're not typed.
     fit_params # if fit_params != nothing, it has priority over abs_tol, etc.
     loss
     rx
@@ -51,17 +51,22 @@ function do_fit!(skglrm::SkGLRM, glrm::GLRM)
     fit!(glrm, fit_params; verbose=skglrm.verbose)
 end
 
+function ind2sub(a, i)
+    i2s[i]
+end
+
 function build_glrm(skglrm::SkGLRM, X, missing_values)
     k = skglrm.k == -1 ? size(X, 2) : skglrm.k
-    obs = [ind2sub(missing_values, x) for x in  (LinearIndices(.!missing_values))[findall(.!missing_values)] ]
+    i2s = CartesianIndices(missing_values)
+    obs = [i2s[x] for x in  (LinearIndices(.!missing_values))[findall(.!missing_values)] ]
     rx, ry = skglrm.rx, skglrm.ry
     if skglrm.rx_scale !== nothing
         rx = copy(rx)
-        scale!(rx, skglrm.rx_scale)
+        mul!(rx, skglrm.rx_scale)
     end
     if skglrm.ry_scale !== nothing
         ry = copy(ry)
-        scale!(ry, skglrm.ry_scale)
+        mul!(ry, skglrm.ry_scale)
     end
     GLRM(X, skglrm.loss, rx, ry, k; obs=obs)
 end
